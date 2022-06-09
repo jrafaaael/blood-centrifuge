@@ -7,26 +7,30 @@
 #define OLED_RESET 4
 
 #define SENSOR_HALL 2
-#define ENABLE 12
+#define START_STOP_BUTTON 3
+#define ACTION_BUTTON 4
 #define MOTOR 10
+#define ENABLE 12
 
-Adafruit_SSD1306 oled(ANCHO, ALTO, &Wire, OLED_RESET);
+const unsigned char MINIMUM_OPERATION_TIME = 5, MAXIMUM_OPERATION_TIME = 30, MINIMUM_ELAPSED_SECONDS_TO_START = 15;
+const unsigned int MINIMUM_RPM = 2500, MAXIMUM_RPM = 2600;
 
-const unsigned char MINIMUM_OPERATION_TIME = 5, MAXIMUM_OPERATION_TIME = 30;
-const unsigned int MINIMUM_RPM = 1300, MAXIMUM_RPM = 1400;
+volatile bool process_start = false, countdown_enabled = false, adjust_pwm = false;
+volatile unsigned char s = 0, m = MINIMUM_OPERATION_TIME, turns_per_sencond = 0;
+volatile unsigned int rpm = 0, total_turns = 0;
 
-volatile bool process_start = false, countdown_enabled = false, ajustar_pwm = false;
-volatile unsigned char s = 0, m = MINIMUM_OPERATION_TIME, menu_to_show = 0;
-volatile unsigned int rpm = 0, turns_per_sencond = 0, total_turns = 0, pwm = 255;
+unsigned char menu_to_show = 0;
+unsigned int pwm = 255, elapsed_seconds = 0;
 char countdown_value[40];
 
+Adafruit_SSD1306 oled(ANCHO, ALTO, &Wire, OLED_RESET);
 auto timer = timer_create_default();
 
 void setup() {
   Serial.begin(9600);
 
-  pinMode(3, INPUT_PULLUP);
-  pinMode(4, INPUT_PULLUP);
+  pinMode(START_STOP_BUTTON, INPUT_PULLUP);
+  pinMode(ACTION_BUTTON, INPUT_PULLUP);
   pinMode(ENABLE, OUTPUT);
   pinMode(MOTOR, OUTPUT);
 
@@ -45,16 +49,17 @@ void loop() {
     rpm = 0;
     turns_per_sencond = 0;
     total_turns = 0;
-    ajustar_pwm = false;
+    adjust_pwm = false;
     countdown_enabled = false;
     pwm = 255;
     s = 0;
-    if (!digitalRead(3)) {
+    elapsed_seconds = 0;
+    if (!digitalRead(START_STOP_BUTTON)) {
       delay(250);
       process_start = true;
       s = 1;
     }
-    if (!digitalRead(4)) {
+    if (!digitalRead(ACTION_BUTTON)) {
       delay(250);
       m += 5;
       if (m > MAXIMUM_OPERATION_TIME) {
@@ -65,25 +70,28 @@ void loop() {
   else {
     timer.tick();
     digitalWrite(ENABLE, HIGH);
-    if (!countdown_enabled && rpm > MINIMUM_RPM && rpm < MAXIMUM_RPM) {
+    if(elapsed_seconds < MINIMUM_ELAPSED_SECONDS_TO_START) {
+      digitalWrite(MOTOR, HIGH);
+    }
+    else if (!countdown_enabled && rpm > MINIMUM_RPM && rpm < MAXIMUM_RPM) {
       countdown_enabled = true;
     }
-    else if (ajustar_pwm) {
+    else if (adjust_pwm) {
       pwm -= 5;
-      if(pwm < 100) {
+      if (pwm < 100) {
         pwm = 255;
       }
       analogWrite(MOTOR, pwm);
-      ajustar_pwm = false;
+      adjust_pwm = false;
     }
-    if (!digitalRead(3)) {
+    if (!digitalRead(START_STOP_BUTTON)) {
       delay(250);
       process_start = false;
       m = 5;
       digitalWrite(ENABLE, LOW);
       digitalWrite(MOTOR, LOW);
     }
-    if (!digitalRead(4)) {
+    if (!digitalRead(ACTION_BUTTON)) {
       delay(250);
       menu_to_show++;
       if (menu_to_show > 2) {
@@ -100,11 +108,12 @@ bool countdown() {
     rpm = turns_per_sencond * 60;
     total_turns = total_turns + turns_per_sencond;
     turns_per_sencond = 0;
+    elapsed_seconds++;
     if (countdown_enabled) {
       s--;
     }
     else {
-      ajustar_pwm = true;
+      adjust_pwm = true;
     }
   }
   if (s == 0 && countdown_enabled) {
