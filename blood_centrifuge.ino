@@ -6,14 +6,14 @@
 #define ANCHO 128
 #define OLED_RESET 4
 
-#define SENSOR_HALL 2
-#define START_STOP_BUTTON 3
-#define ACTION_BUTTON 4
+#define SENSOR_HALL 3
+#define START_STOP_BUTTON 0
+#define ACTION_BUTTON 1
 #define MOTOR 10
 #define ENABLE 12
 
 const unsigned char MINIMUM_OPERATION_TIME = 5, MAXIMUM_OPERATION_TIME = 30, MINIMUM_ELAPSED_SECONDS_TO_START = 15;
-const unsigned int MINIMUM_RPM = 2500, MAXIMUM_RPM = 2600;
+const unsigned int MINIMUM_RPM = 2500, MAXIMUM_RPM = 2550;
 
 volatile bool process_start = false, countdown_enabled = false, adjust_pwm = false;
 volatile unsigned char s = 0, m = MINIMUM_OPERATION_TIME, turns_per_sencond = 0;
@@ -26,7 +26,7 @@ Adafruit_SSD1306 oled(ANCHO, ALTO, &Wire, OLED_RESET);
 auto timer = timer_create_default();
 
 void setup() {
-  Serial.begin(9600);
+  //  Serial.begin(9600);
 
   pinMode(START_STOP_BUTTON, INPUT_PULLUP);
   pinMode(ACTION_BUTTON, INPUT_PULLUP);
@@ -56,7 +56,6 @@ void loop() {
     if (!digitalRead(START_STOP_BUTTON)) {
       delay(250);
       process_start = true;
-      s = 1;
     }
     if (!digitalRead(ACTION_BUTTON)) {
       delay(250);
@@ -75,14 +74,23 @@ void loop() {
     else if (!countdown_enabled && rpm > MINIMUM_RPM && rpm < MAXIMUM_RPM) {
       countdown_enabled = true;
     }
-    else if (adjust_pwm) {
-      pwm -= 5;
-      if (pwm < 100) {
-        pwm = 255;
+    else if (adjust_pwm && (rpm < MINIMUM_RPM || rpm > MAXIMUM_RPM)) {
+      if (!countdown_enabled) {
+        if (rpm < MINIMUM_RPM) {
+          pwm += 5;
+        } else if (rpm > MAXIMUM_RPM) {
+          pwm -= 5;
+        }
+      } else {
+        if (rpm < MINIMUM_RPM) {
+          pwm += 1;
+        } else if (rpm > MAXIMUM_RPM) {
+          pwm -= 1;
+        }
       }
-      analogWrite(MOTOR, pwm);
       adjust_pwm = false;
     }
+    analogWrite(MOTOR, pwm);
     if (!digitalRead(START_STOP_BUTTON)) {
       delay(250);
       process_start = false;
@@ -93,12 +101,12 @@ void loop() {
     if (!digitalRead(ACTION_BUTTON)) {
       delay(250);
       menu_to_show++;
-      if (menu_to_show > 3) {
+      if (menu_to_show > 2) {
         menu_to_show = 0;
       }
     }
   }
-
+  
   print_menu();
 }
 
@@ -108,11 +116,12 @@ bool countdown() {
     total_turns = total_turns + turns_per_sencond;
     turns_per_sencond = 0;
     elapsed_seconds++;
+    adjust_pwm = true;
     if (countdown_enabled) {
       s--;
-    }
-    else {
-      adjust_pwm = true;
+      if(s > 59) {
+        s = 0;
+      }
     }
   }
   if (s == 0 && countdown_enabled) {
@@ -138,7 +147,7 @@ void print_menu() {
   oled.setTextColor(WHITE);
   oled.setTextSize(2);
   oled.setCursor(0, 0);
-  
+
   if (menu_to_show == 0) {
     sprintf(buffer, "%02d:%02d", m, s);
     oled.print("Tiempo: ");
@@ -146,23 +155,21 @@ void print_menu() {
     oled.setTextSize(4);
     oled.print(buffer);
   } else if (menu_to_show == 1) {
-    oled.print("RPM: ");
+    char otherBuffer[10];
+    unsigned char pwm_percentage = map(pwm, 0, 255, 0, 100);
+    sprintf(otherBuffer, "PWM: %d %%", pwm_percentage);
+
+    oled.print(otherBuffer);
     oled.setCursor(0, 20);
-    oled.setTextSize(4);
+    oled.print("RPM:");
+    oled.setTextSize(3);
+    oled.setCursor(0, 40);
     oled.print(rpm);
-  } else if (menu_to_show == 2) {
+  } else {
+    sprintf(buffer, "%06d", total_turns);
     oled.print("Vueltas: ");
     oled.setCursor(0, 20);
     oled.setTextSize(3);
-    oled.print(total_turns);
-  } else {
-    unsigned char pwm_percentage = map(pwm, 0, 255, 0, 100);
-    sprintf(buffer, "%03d %%", pwm_percentage);
-    oled.print("PWM: ");
-    oled.setTextSize(3);
-    oled.setCursor(0, 42);
-    oled.print(pwm);
-    oled.setCursor(0, 17);
     oled.print(buffer);
   }
   oled.display();
