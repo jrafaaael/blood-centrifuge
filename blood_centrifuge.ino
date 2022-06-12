@@ -110,6 +110,8 @@ void loop() {
     }
   }
   if (process_end) {
+    digitalWrite(ENABLE, LOW);
+    digitalWrite(MOTOR, LOW);
     oled.clearDisplay();
     oled.setTextColor(WHITE);
     oled.setTextSize(3);
