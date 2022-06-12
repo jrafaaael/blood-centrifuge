@@ -6,16 +6,17 @@
 #define ANCHO 128
 #define OLED_RESET 4
 
-#define SENSOR_HALL 3
 #define START_STOP_BUTTON 0
 #define ACTION_BUTTON 1
+#define BUZZER 2
+#define SENSOR_HALL 3
 #define MOTOR 10
 #define ENABLE 12
 
 const unsigned char MINIMUM_OPERATION_TIME = 5, MAXIMUM_OPERATION_TIME = 30, MINIMUM_ELAPSED_SECONDS_TO_START = 15;
 const unsigned int MINIMUM_RPM = 2500, MAXIMUM_RPM = 2550;
 
-volatile bool process_start = false, countdown_enabled = false, adjust_pwm = false;
+volatile bool process_start = false, process_end = false, countdown_enabled = false, adjust_pwm = false;
 volatile unsigned char s = 0, m = MINIMUM_OPERATION_TIME, turns_per_sencond = 0;
 volatile unsigned int rpm = 0, total_turns = 0;
 
@@ -32,6 +33,7 @@ void setup() {
   pinMode(ACTION_BUTTON, INPUT_PULLUP);
   pinMode(ENABLE, OUTPUT);
   pinMode(MOTOR, OUTPUT);
+  pinMode(BUZZER, OUTPUT);
 
   timer.every(1000, countdown);
 
@@ -53,6 +55,7 @@ void loop() {
     pwm = 255;
     s = 0;
     elapsed_seconds = 0;
+    process_end = false;
     if (!digitalRead(START_STOP_BUTTON)) {
       delay(250);
       process_start = true;
@@ -106,7 +109,18 @@ void loop() {
       }
     }
   }
-  
+  if (process_end) {
+    oled.clearDisplay();
+    oled.setTextColor(WHITE);
+    oled.setTextSize(3);
+    oled.setCursor(0, 20);
+    oled.print("Cuidado");
+    oled.display();
+    digitalWrite(BUZZER, HIGH);
+    delay(3000);
+    digitalWrite(BUZZER, LOW);
+    process_end = false;
+  }
   print_menu();
 }
 
@@ -119,7 +133,7 @@ bool countdown() {
     adjust_pwm = true;
     if (countdown_enabled) {
       s--;
-      if(s > 59) {
+      if (s > 59) {
         s = 0;
       }
     }
@@ -128,6 +142,7 @@ bool countdown() {
     if (m == 0) {
       m = MINIMUM_OPERATION_TIME;
       process_start = false;
+      process_end = true;
     }
     if (process_start) {
       m--;
