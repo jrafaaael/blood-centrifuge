@@ -23,6 +23,10 @@ volatile unsigned int rpm = 0, total_turns = 0;
 unsigned char menu_to_show = 0;
 unsigned int pwm = 255, elapsed_seconds = 0;
 
+char rpm_buffer[10];
+char time_buffer[10];
+char total_turns_buffer[10];
+
 Adafruit_SSD1306 oled(ANCHO, ALTO, &Wire, OLED_RESET);
 auto timer = timer_create_default();
 
@@ -123,7 +127,19 @@ void loop() {
     digitalWrite(BUZZER, LOW);
     process_end = false;
   }
-  print_menu();
+  oled.clearDisplay();
+  oled.setTextColor(WHITE);
+  oled.setTextSize(2);
+  oled.setCursor(0, 0);
+  sprintf(rpm_buffer, "RPM: %0.4d", rpm);
+  oled.print(rpm_buffer);
+  oled.setCursor(0, 25);
+  sprintf(time_buffer, "T: %02d:%02d", m, s);
+  oled.print(time_buffer);
+  oled.setCursor(0, 50);
+  sprintf(total_turns_buffer, "Vt: %0.6d", total_turns);
+  oled.print(total_turns_buffer);
+  oled.display();
 }
 
 bool countdown() {
@@ -156,38 +172,4 @@ bool countdown() {
 
 void turns_ISR() {
   turns_per_sencond++;
-}
-
-void print_menu() {
-  char buffer[6];
-  oled.clearDisplay();
-  oled.setTextColor(WHITE);
-  oled.setTextSize(2);
-  oled.setCursor(0, 0);
-
-  if (menu_to_show == 0) {
-    sprintf(buffer, "%02d:%02d", m, s);
-    oled.print("Tiempo: ");
-    oled.setCursor(0, 20);
-    oled.setTextSize(4);
-    oled.print(buffer);
-  } else if (menu_to_show == 1) {
-    char otherBuffer[10];
-    unsigned char pwm_percentage = map(pwm, 0, 255, 0, 100);
-    sprintf(otherBuffer, "PWM: %d %%", pwm_percentage);
-
-    oled.print(otherBuffer);
-    oled.setCursor(0, 20);
-    oled.print("RPM:");
-    oled.setTextSize(3);
-    oled.setCursor(0, 40);
-    oled.print(rpm);
-  } else {
-    sprintf(buffer, "%06d", total_turns);
-    oled.print("Vueltas: ");
-    oled.setCursor(0, 20);
-    oled.setTextSize(3);
-    oled.print(buffer);
-  }
-  oled.display();
 }
