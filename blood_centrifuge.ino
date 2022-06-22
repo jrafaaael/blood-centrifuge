@@ -95,6 +95,12 @@ void loop() {
           pwm -= 1;
         }
       }
+      if (pwm > 255) {
+        pwm = 250;
+      }
+      else if (pwm < 100) {
+        pwm = 150;
+      }
       adjust_pwm = false;
     }
     analogWrite(MOTOR, pwm);
